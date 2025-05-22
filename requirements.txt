@@ -4,3 +4,5 @@ watchdog
 jsonschema
 mcp>=1.6.0
 retrying
+ddtrace>=2.0.0
+datadog>=0.47.0
