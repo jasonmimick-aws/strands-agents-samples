@@ -18,6 +18,7 @@ This example demonstrates:
 - Datadog account and API key
 - Langfuse account and API keys (if using Langfuse)
 - Strands Agents SDK
+- python-dotenv package (pip install python-dotenv)
 """
 
 import os
@@ -25,20 +26,22 @@ import sys
 import time
 from typing import Dict, Any, List
 from strands import Agent, tool
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add the parent directory to the path to import utils
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils import DatadogAgent, init_datadog
 
-# Set Datadog environment variables
-os.environ["DD_ENV"] = "development"  # or staging, production
-os.environ["DD_SERVICE"] = "strands-demo-agent"
-# os.environ["DD_API_KEY"] = "<your-datadog-api-key>"  # Set your Datadog API key here or in environment
+# Get environment variables with defaults
+dd_env = os.getenv("DD_ENV", "development")  # or staging, production
+dd_service = os.getenv("DD_SERVICE", "strands-demo-agent")
+# DD_API_KEY should be set in .env file
 
-# Set Langfuse environment variables (if using Langfuse)
-# os.environ["LANGFUSE_PUBLIC_KEY"] = "<your-langfuse-public-key>"
-# os.environ["LANGFUSE_SECRET_KEY"] = "<your-langfuse-secret-key>"
-# os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"  # or your self-hosted URL
+# Langfuse environment variables will be loaded from .env file if present
+# LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
 
 # System prompt
 SYSTEM_PROMPT = """You are a helpful assistant that can answer questions and perform calculations.
@@ -106,15 +109,15 @@ base_agent = Agent(
 
 # Initialize Datadog separately for any standalone metrics
 init_datadog(
-    service_name="strands-demo-agent",
-    env=os.environ.get("DD_ENV", "development"),
+    service_name=dd_service,
+    env=dd_env,
 )
 
 # Wrap with Datadog telemetry
 agent = DatadogAgent(
     agent=base_agent,
-    service_name="strands-demo-agent",
-    env=os.environ.get("DD_ENV", "development"),
+    service_name=dd_service,
+    env=dd_env,
 )
 
 # If using Langfuse, you would configure it here
