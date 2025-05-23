@@ -20,6 +20,9 @@ class DatadogAgent:
         dd_api_key: Optional[str] = None,
         dd_app_key: Optional[str] = None,
         dd_site: str = "datadoghq.com",
+        ml_app: str = "stands-agent",
+        agentless_enabled: bool = True
+
     ):
         """
         Initialize a Datadog-instrumented Strands Agent.

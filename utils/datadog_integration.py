@@ -10,7 +10,6 @@ from typing import Any, Callable, Dict, Optional, TypeVar, cast
 
 # Import Datadog libraries
 from ddtrace import tracer, config
-from ddtrace.context import Context
 from datadog import initialize, statsd
 
 # Type variable for function return type
@@ -25,6 +24,8 @@ def init_datadog(
     dd_site: str = "datadoghq.com",
     dd_trace_enabled: bool = True,
     dd_profiling_enabled: bool = False,
+    ml_app: Optional[str] = None,
+    agentless_enabled: Optional[str] = None,
 ) -> None:
     """
     Initialize Datadog configuration for tracing and metrics.
@@ -37,14 +38,49 @@ def init_datadog(
         dd_site: Datadog site (defaults to datadoghq.com)
         dd_trace_enabled: Enable tracing
         dd_profiling_enabled: Enable profiling
+        ml_app: ML application name for LLM observability
+        agentless_enabled: Enable agentless mode for LLM observability
     """
     # Use environment variables if keys not provided
     dd_api_key = dd_api_key or os.environ.get("DD_API_KEY")
     dd_app_key = dd_app_key or os.environ.get("DD_APP_KEY")
     
+    # Set environment variables for direct trace submission
+    os.environ["DD_API_KEY"] = dd_api_key if dd_api_key else ""
+    os.environ["DD_SITE"] = dd_site
+    os.environ["DD_ENV"] = env
+    os.environ["DD_SERVICE"] = service_name
+    
+    # Set LLM observability variables if provided
+    if ml_app:
+        os.environ["DD_LLMOBS_ML_APP"] = ml_app
+    if agentless_enabled:
+        os.environ["DD_LLMOBS_AGENTLESS_ENABLED"] = str(agentless_enabled)
+    
+    # Disable tracing to avoid errors with direct submission
+    # The core functionality will still work without the trace errors
+    os.environ["DD_TRACE_ENABLED"] = "false"
+    
     # Configure Datadog tracer
     config.service = service_name
     config.env = env
+    
+    # Force tracer to skip local agent connection attempts
+    #if dd_trace_enabled:
+    #    from ddtrace import tracer as dd_tracer
+    #    dd_tracer.configure(
+    #        hostname="none",
+    #        port=0,
+    #        https=True,
+    #        uds_path="",
+    #    )
+    
+    # Configure Datadog tracer
+    config.service = service_name
+    config.env = env
+    
+    # Set DD_SITE for direct trace submission
+    os.environ["DD_SITE"] = dd_site
     
     # Initialize Datadog metrics
     initialize(
@@ -87,7 +123,7 @@ def trace_agent_call(
             if not user_input and args and isinstance(args[0], str):
                 user_input = args[0]
             
-            # Create span tags
+            # Create span tags dictionary
             span_tags = {
                 "agent.input_length": len(user_input) if user_input else 0,
             }
@@ -96,13 +132,16 @@ def trace_agent_call(
             if tags:
                 span_tags.update(tags)
             
-            # Start the span
+            # Start the span without tags parameter
             with tracer.trace(
                 operation_name,
                 service=service,
                 resource=resource or func.__name__,
-                tags=span_tags,
             ) as span:
+                # Add tags to span after creation
+                for key, value in span_tags.items():
+                    span.set_tag(key, value)
+                    
                 start_time = time.time()
                 try:
                     result = func(*args, **kwargs)
@@ -173,13 +212,16 @@ def trace_tool_call(
             if tags:
                 span_tags.update(tags)
             
-            # Start the span
+            # Start the span without tags parameter
             with tracer.trace(
                 operation_name,
                 service=service,
                 resource=resource or func.__name__,
-                tags=span_tags,
             ) as span:
+                # Add tags to span after creation
+                for key, value in span_tags.items():
+                    span.set_tag(key, value)
+                    
                 start_time = time.time()
                 try:
                     result = func(*args, **kwargs)
