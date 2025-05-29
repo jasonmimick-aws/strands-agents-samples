@@ -26,8 +26,14 @@ from typing import Dict, Any
 from strands import Agent, tool
 from dotenv import load_dotenv
 
+from ddtrace.llmobs import LLMObs
+
+
+
 # Load environment variables from .env file
 load_dotenv()
+
+LLMObs.enable()
 
 # Set AWS region if not already set - MUST be done before any AWS calls
 if not os.environ.get("AWS_REGION") and not os.environ.get("AWS_DEFAULT_REGION"):
@@ -38,13 +44,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from utils.datadog_integration import init_datadog, trace_agent_call, trace_tool_call
 
 # Get environment variables with defaults
-dd_env = os.getenv("DD_ENV", "development")  # or staging, production
-dd_service = os.getenv("DD_SERVICE", "strands-demo-agent")
-dd_api_key = os.getenv("DD_API_KEY")
-dd_app_key = os.getenv("DD_APP_KEY")
-dd_site = os.getenv("DD_SITE", "datadoghq.com")
-ml_app= os.getenv("LLMOBS_ML_APP", "strands-demo-agent")
-agentless_enabled= os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", 1)
+#dd_env = os.getenv("DD_ENV", "development")  # or staging, production
+#dd_service = os.getenv("DD_SERVICE", "strands-demo-agent")
+#dd_api_key = os.getenv("DD_API_KEY")
+#dd_app_key = os.getenv("DD_APP_KEY")
+#dd_site = os.getenv("DD_SITE", "datadoghq.com")
+#ml_app= os.getenv("LLMOBS_ML_APP", "strands-demo-agent")
+#agentless_enabled= os.getenv("DD_LLMOBS_AGENTLESS_ENABLED", 1)
 
 # Get model configuration
 model_name = os.getenv("MODEL_NAME", "amazon.titan-text-express-v1")
@@ -119,15 +125,15 @@ def main():
         
         # Initialize Datadog
         print("\nInitializing Datadog...")
-        init_datadog(
-            service_name=dd_service,
-            env=dd_env,
-            dd_api_key=dd_api_key,
-            dd_app_key=dd_app_key,
-            dd_site=dd_site,
-            ml_app=ml_app,
-            agentless_enabled=agentless_enabled
-        )
+        #init_datadog(
+        #    service_name=dd_service,
+        #    env=dd_env,
+        #    dd_api_key=dd_api_key,
+        #    dd_app_key=dd_app_key,
+        #    dd_site=dd_site,
+        #    ml_app=ml_app,
+        #    agentless_enabled=agentless_enabled
+        #)
 
         # Initialize agent with configured model
         print(f"Initializing agent with model: {model_name}")
@@ -148,7 +154,7 @@ def main():
         interaction_count = 0
         
         # Create a traced version of the agent call
-        @trace_agent_call(operation_name="agent_call")
+        #@trace_agent_call(operation_name="agent_call")
         def traced_agent_call(agent, user_input):
             """Traced version of the agent call"""
             return agent(user_input)
