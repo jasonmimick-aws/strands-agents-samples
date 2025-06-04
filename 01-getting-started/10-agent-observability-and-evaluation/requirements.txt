@@ -8,6 +8,5 @@ retrying
 strands-agents
 strands-agents-tools
 langfuse
-ragas
 langchain-aws
 pandas
