@@ -1,0 +1,88 @@
+# AWS Architecture for Bedrock Agent Restaurant Reservation System with Datadog Integration
+
+## Components:
+
+1. **User Interface**
+   - Web/Mobile Application
+   - Amazon API Gateway (for REST API endpoints)
+
+2. **Amazon Bedrock**
+   - Bedrock Foundation Model
+   - Bedrock Agent for Restaurant Reservations
+     - Knowledge Base (containing restaurant information)
+     - Action Groups (for reservation operations)
+
+3. **Backend Services**
+   - AWS Lambda Functions
+     - Reservation Handler
+     - Restaurant Information Service
+     - Availability Checker
+
+4. **Database**
+   - Amazon RDS (PostgreSQL)
+     - Restaurant Information Table
+     - Reservation Table
+     - User Information Table
+
+5. **Authentication & Authorization**
+   - Amazon Cognito
+
+6. **Observability with Datadog**
+   - Datadog Agent
+   - APM (Application Performance Monitoring)
+   - Log Management
+   - Metrics Collection
+   - Dashboards & Alerts
+
+## Information Flow:
+
+1. User initiates conversation with the Bedrock Agent through web/mobile interface
+2. API Gateway routes the request to Bedrock Agent
+3. Bedrock Agent processes natural language and determines intent (booking reservation)
+4. Agent calls appropriate Lambda functions through Action Groups
+5. Lambda functions query/update RDS database for restaurant availability and booking
+6. Response flows back through the same path to the user
+7. Throughout this process:
+   - Datadog Agent collects metrics, logs, and traces
+   - Lambda functions are instrumented with Datadog APM
+   - RDS performance is monitored by Datadog
+   - API Gateway metrics are collected
+   - Bedrock Agent performance is tracked
+
+## Datadog Integration Points:
+
+1. **AWS Integration**
+   - CloudWatch metrics forwarded to Datadog
+   - AWS Lambda instrumented with Datadog layers
+   - RDS performance metrics collected
+
+2. **Application Monitoring**
+   - Distributed tracing across services
+   - Custom metrics for business KPIs (reservations made, etc.)
+   - Log collection and correlation
+
+3. **Dashboards & Alerts**
+   - Reservation success rate dashboard
+   - API latency monitoring
+   - Error rate alerting
+   - Database performance dashboard
+
+## Security Considerations:
+
+1. IAM roles for service-to-service communication
+2. Cognito for user authentication
+3. VPC for database isolation
+4. Encryption at rest for sensitive data
+5. Datadog API keys stored in AWS Secrets Manager
+
+## Notes for Diagram Creation:
+When creating the visual diagram, use the official AWS Architecture Icons from:
+https://aws.amazon.com/architecture/icons/
+
+For Datadog icons, use the official brand assets from:
+https://www.datadoghq.com/about/resources/
+
+Connect components with arrows showing data flow, and use color coding to distinguish between:
+- User request path
+- Backend processing
+- Datadog monitoring flow

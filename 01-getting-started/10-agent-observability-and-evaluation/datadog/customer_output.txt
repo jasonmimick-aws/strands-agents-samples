@@ -1,0 +1,23 @@
+CUSTOMER REVIEW SENTIMENT ANALYSIS
+
+Reviews analyzed: 3
+Total positive words: 2
+Total negative words: 1
+Overall sentiment: POSITIVE
+
+=== INDIVIDUAL REVIEWS ===
+
+Review #1: "This product is amazing! I love it."
+  Positive words: 2
+  Negative words: 0
+  Sentiment: positive
+
+Review #2: "This was a terrible experience. Would not recommend."
+  Positive words: 0
+  Negative words: 1
+  Sentiment: negative
+
+Review #3: "The service was okay, nothing special."
+  Positive words: 0
+  Negative words: 0
+  Sentiment: neutral
