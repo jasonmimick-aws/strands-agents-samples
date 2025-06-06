@@ -1,0 +1,251 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template to deploy ADOT Collector with Datadog exporter (simplified)'
+
+Parameters:
+  DatadogApiKey:
+    Type: String
+    NoEcho: true
+    Description: Your Datadog API key
+
+  DatadogSite:
+    Type: String
+    Default: datadoghq.com
+    Description: The Datadog site to send data to (e.g., datadoghq.com, datadoghq.eu)
+
+Resources:
+  ADOTCollectorSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ADOT Collector
+      VpcId: !Ref ADOTCollectorVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 4317
+          ToPort: 4317
+          CidrIp: 0.0.0.0/0
+          Description: OTLP gRPC
+        - IpProtocol: tcp
+          FromPort: 4318
+          ToPort: 4318
+          CidrIp: 0.0.0.0/0
+          Description: OTLP HTTP
+        - IpProtocol: tcp
+          FromPort: 55680
+          ToPort: 55680
+          CidrIp: 0.0.0.0/0
+          Description: OpenCensus
+        - IpProtocol: tcp
+          FromPort: 8888
+          ToPort: 8888
+          CidrIp: 0.0.0.0/0
+          Description: Prometheus metrics
+        - IpProtocol: tcp
+          FromPort: 13133
+          ToPort: 13133
+          CidrIp: 0.0.0.0/0
+          Description: Health check
+
+  ADOTCollectorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+
+  ADOTCollectorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/adot-collector
+      RetentionInDays: 30
+
+  ADOTCollectorTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: adot-collector
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !GetAtt ADOTCollectorRole.Arn
+      TaskRoleArn: !GetAtt ADOTCollectorRole.Arn
+      ContainerDefinitions:
+        - Name: adot-collector
+          Image: amazon/aws-otel-collector:latest
+          Essential: true
+          PortMappings:
+            - ContainerPort: 4317
+              HostPort: 4317
+              Protocol: tcp
+            - ContainerPort: 4318
+              HostPort: 4318
+              Protocol: tcp
+            - ContainerPort: 55680
+              HostPort: 55680
+              Protocol: tcp
+            - ContainerPort: 8888
+              HostPort: 8888
+              Protocol: tcp
+            - ContainerPort: 13133
+              HostPort: 13133
+              Protocol: tcp
+          Environment:
+            - Name: DD_API_KEY
+              Value: !Ref DatadogApiKey
+            - Name: DD_SITE
+              Value: !Ref DatadogSite
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ADOTCollectorLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: adot-collector
+          Command:
+            - "--config=/etc/ecs/otel-config.yaml"
+          MountPoints: []
+          DockerLabels:
+            otel-config: |
+              receivers:
+                otlp:
+                  protocols:
+                    grpc:
+                      endpoint: 0.0.0.0:4317
+                    http:
+                      endpoint: 0.0.0.0:4318
+              
+              processors:
+                batch:
+                  timeout: 1s
+                  send_batch_size: 1024
+              
+              exporters:
+                debug:
+                  level: debug
+                logging:
+                  verbosity: detailed
+                
+                datadog:
+                  api:
+                    key: ${DD_API_KEY}
+                    site: ${DD_SITE}
+                  traces:
+                    span_name_remapping:
+                      enabled: true
+                    span_name_as_resource_name: true
+                    trace_client_version: "v0.4"
+                  hostname_source: config_override
+                  hostname: "adot-collector"
+                  env: "development"
+                    
+                awsxray:
+                  region: "${AWS_REGION}"
+              
+              service:
+                pipelines:
+                  traces:
+                    receivers: [otlp]
+                    processors: [batch]
+                    exporters: [datadog, awsxray, logging]
+                  metrics:
+                    receivers: [otlp]
+                    processors: [batch]
+                    exporters: [datadog, logging]
+                  logs:
+                    receivers: [otlp]
+                    processors: [batch]
+                    exporters: [datadog, logging]
+          EntryPoint:
+            - "/bin/sh"
+            - "-c"
+            - |
+              echo "$otel_config" > /etc/ecs/otel-config.yaml && \
+              /aws-otel-collector --config=/etc/ecs/otel-config.yaml
+
+  ADOTCollectorCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: adot-collector-cluster
+
+  ADOTCollectorVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: ADOT Collector VPC
+
+  ADOTCollectorSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ADOTCollectorVPC
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: ADOT Collector Subnet
+
+  ADOTCollectorInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: ADOT Collector IGW
+
+  ADOTCollectorGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref ADOTCollectorVPC
+      InternetGatewayId: !Ref ADOTCollectorInternetGateway
+
+  ADOTCollectorRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ADOTCollectorVPC
+      Tags:
+        - Key: Name
+          Value: ADOT Collector Route Table
+
+  ADOTCollectorRoute:
+    Type: AWS::EC2::Route
+    DependsOn: ADOTCollectorGatewayAttachment
+    Properties:
+      RouteTableId: !Ref ADOTCollectorRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref ADOTCollectorInternetGateway
+
+  ADOTCollectorSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref ADOTCollectorSubnet
+      RouteTableId: !Ref ADOTCollectorRouteTable
+
+  ADOTCollectorService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ADOTCollectorCluster
+      ServiceName: adot-collector-service
+      TaskDefinition: !Ref ADOTCollectorTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref ADOTCollectorSubnet
+          SecurityGroups:
+            - !GetAtt ADOTCollectorSecurityGroup.GroupId
+
+Outputs:
+  ADOTCollectorEndpoint:
+    Description: The endpoint for the ADOT Collector
+    Value: !Sub "Run ./get-adot-collector-endpoint.sh to get the public IP address of the ADOT Collector"

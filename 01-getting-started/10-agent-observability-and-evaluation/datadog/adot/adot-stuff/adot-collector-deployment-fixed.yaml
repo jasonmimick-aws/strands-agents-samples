@@ -1,0 +1,401 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template to deploy ADOT Collector with Datadog exporter'
+
+Parameters:
+  DatadogApiKey:
+    Type: String
+    NoEcho: true
+    Description: Your Datadog API key
+
+  DatadogSite:
+    Type: String
+    Default: datadoghq.com
+    Description: The Datadog site to send data to (e.g., datadoghq.com, datadoghq.eu)
+
+Resources:
+  ADOTCollectorSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ADOT Collector
+      VpcId: !Ref ADOTCollectorVPC
+      #GroupName: !Sub "${AWS::StackName}-sg"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 4317
+          ToPort: 4317
+          CidrIp: 0.0.0.0/0
+          Description: OTLP gRPC
+        - IpProtocol: tcp
+          FromPort: 4318
+          ToPort: 4318
+          CidrIp: 0.0.0.0/0
+          Description: OTLP HTTP
+        - IpProtocol: tcp
+          FromPort: 55680
+          ToPort: 55680
+          CidrIp: 0.0.0.0/0
+          Description: OpenCensus
+        - IpProtocol: tcp
+          FromPort: 8888
+          ToPort: 8888
+          CidrIp: 0.0.0.0/0
+          Description: Prometheus metrics
+        - IpProtocol: tcp
+          FromPort: 13133
+          ToPort: 13133
+          CidrIp: 0.0.0.0/0
+          Description: Health check
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: 10.0.0.0/16
+          Description: NFS for EFS mount
+
+  ADOTCollectorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+
+  ADOTCollectorTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: adot-collector
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !GetAtt ADOTCollectorRole.Arn
+      TaskRoleArn: !GetAtt ADOTCollectorRole.Arn
+      ContainerDefinitions:
+        - Name: adot-collector
+          Image: amazon/aws-otel-collector:latest
+          Essential: true
+          PortMappings:
+            - ContainerPort: 4317
+              HostPort: 4317
+              Protocol: tcp
+            - ContainerPort: 4318
+              HostPort: 4318
+              Protocol: tcp
+            - ContainerPort: 55680
+              HostPort: 55680
+              Protocol: tcp
+            - ContainerPort: 8888
+              HostPort: 8888
+              Protocol: tcp
+            - ContainerPort: 13133
+              HostPort: 13133
+              Protocol: tcp
+          Environment:
+            - Name: DD_API_KEY
+              Value: !Ref DatadogApiKey
+            - Name: DD_SITE
+              Value: !Ref DatadogSite
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ADOTCollectorLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: adot-collector
+          Command:
+            - "--config=/etc/otel-collector-config/config.yaml"
+          MountPoints:
+            - SourceVolume: otel-collector-config
+              ContainerPath: /etc/otel-collector-config
+              ReadOnly: true
+      Volumes:
+        - Name: otel-collector-config
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref ADOTConfigFileSystem
+            RootDirectory: /
+            TransitEncryption: ENABLED
+
+  ADOTCollectorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/adot-collector
+      RetentionInDays: 30
+
+  ADOTConfigFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      Encrypted: true
+      LifecyclePolicies:
+        - TransitionToIA: AFTER_30_DAYS
+
+  ADOTConfigMountTarget:
+    Type: AWS::EFS::MountTarget
+    DependsOn: 
+      - ADOTCollectorSubnet
+      - ADOTCollectorVPC
+      - ADOTCollectorGatewayAttachment
+      - ADOTCollectorSubnetRouteTableAssociation
+      - ADOTCollectorSecurityGroup
+      - ADOTConfigFileSystem
+      - ADOTCollectorRouteTable
+      - ADOTCollectorRoute
+    Properties:
+      FileSystemId: !Ref ADOTConfigFileSystem
+      SubnetId: !Ref ADOTCollectorSubnet
+      SecurityGroups:
+        - !Ref ADOTCollectorSecurityGroup
+
+  ADOTCollectorCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: adot-collector-cluster
+
+  ADOTCollectorVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: ADOT Collector VPC
+
+  ADOTCollectorSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ADOTCollectorVPC
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: ADOT Collector Subnet
+
+  ADOTCollectorInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: ADOT Collector IGW
+
+  ADOTCollectorGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref ADOTCollectorVPC
+      InternetGatewayId: !Ref ADOTCollectorInternetGateway
+
+  ADOTCollectorRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ADOTCollectorVPC
+      Tags:
+        - Key: Name
+          Value: ADOT Collector Route Table
+
+  ADOTCollectorRoute:
+    Type: AWS::EC2::Route
+    DependsOn: ADOTCollectorGatewayAttachment
+    Properties:
+      RouteTableId: !Ref ADOTCollectorRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref ADOTCollectorInternetGateway
+
+  ADOTCollectorSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref ADOTCollectorSubnet
+      RouteTableId: !Ref ADOTCollectorRouteTable
+
+  # Custom resource to create the config file in EFS
+  ConfigFileCreator:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt ConfigFileCreatorFunction.Arn
+      FileSystemId: !Ref ADOTConfigFileSystem
+      ConfigContent: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+
+        processors:
+          batch:
+            timeout: 1s
+            send_batch_size: 1024
+
+        exporters:
+          debug:
+            level: "debug" 
+          logging:
+            verbosity: detailed
+          
+          datadog:
+            api:
+              key: ${DD_API_KEY}
+              site: ${DD_SITE}
+            traces:
+              span_name_remapping:
+                enabled: true
+              span_name_as_resource_name: true
+              trace_client_version: "v0.4"
+            hostname_source: config_override
+            hostname: "adot-collector"
+            env: "development"
+              
+          awsxray:
+            region: "${AWS_REGION}"
+
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [datadog, awsxray, logging]
+            metrics:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [datadog, logging]
+            logs:
+              receivers: [otlp]
+              processors: [batch]
+              exporters: [datadog, logging]
+
+  # Lambda function to create the config file in EFS
+  ConfigFileCreatorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt ConfigFileCreatorRole.Arn
+      Runtime: python3.9
+      Timeout: 300
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import os
+          import tempfile
+          import subprocess
+          import time
+          
+          def handler(event, context):
+              response_data = {}
+              
+              if event['RequestType'] == 'Delete':
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+                  return
+              
+              try:
+                  # Get parameters
+                  file_system_id = event['ResourceProperties']['FileSystemId']
+                  config_content = event['ResourceProperties']['ConfigContent']
+                  
+                  # Create a temporary directory
+                  temp_dir = tempfile.mkdtemp()
+                  
+                  # Write the config to a temporary file
+                  config_file_path = os.path.join(temp_dir, 'config.yaml')
+                  with open(config_file_path, 'w') as f:
+                      f.write(config_content)
+                  
+                  # Create a directory to mount the EFS
+                  mount_dir = os.path.join(temp_dir, 'efs')
+                  os.makedirs(mount_dir, exist_ok=True)
+                  
+                  # Install the EFS mount helper
+                  subprocess.run(['yum', 'install', '-y', 'amazon-efs-utils'], check=True)
+                  
+                  # Mount the EFS
+                  mount_cmd = ['mount', '-t', 'efs', file_system_id + ':', mount_dir]
+                  subprocess.run(mount_cmd, check=True)
+                  
+                  # Create the directory for the config file
+                  config_dir = os.path.join(mount_dir, 'config')
+                  os.makedirs(config_dir, exist_ok=True)
+                  
+                  # Copy the config file to the EFS
+                  with open(config_file_path, 'r') as src:
+                      with open(os.path.join(config_dir, 'config.yaml'), 'w') as dst:
+                          dst.write(src.read())
+                  
+                  # Set permissions
+                  subprocess.run(['chmod', '644', os.path.join(config_dir, 'config.yaml')], check=True)
+                  
+                  # Unmount the EFS
+                  subprocess.run(['umount', mount_dir], check=True)
+                  
+                  response_data['Message'] = 'Config file created successfully'
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+              except Exception as e:
+                  print(f"Error: {str(e)}")
+                  response_data['Error'] = str(e)
+                  cfnresponse.send(event, context, cfnresponse.FAILED, response_data)
+
+  ConfigFileCreatorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: EFSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - elasticfilesystem:DescribeFileSystems
+                  - elasticfilesystem:DescribeMountTargets
+                  - elasticfilesystem:ClientMount
+                  - elasticfilesystem:ClientWrite
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                Resource: '*'
+
+  ADOTCollectorService:
+    Type: AWS::ECS::Service
+    DependsOn: 
+      - ADOTConfigMountTarget
+      - ConfigFileCreator
+    Properties:
+      Cluster: !Ref ADOTCollectorCluster
+      ServiceName: adot-collector-service
+      TaskDefinition: !Ref ADOTCollectorTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref ADOTCollectorSubnet
+          SecurityGroups:
+            - !GetAtt ADOTCollectorSecurityGroup.GroupId
+
+Outputs:
+  ADOTCollectorSubnet:
+    Description: The subnet where the ADOT Collector is deployed
+    Value: !Ref ADOTCollectorSubnet
+  ADOTCollectorSecurityGroup:
+    Description: The security group for the ADOT Collector
+    Value: !Ref ADOTCollectorSecurityGroup
+  ADOTCollectorEndpoint:
+    Description: The endpoint for the ADOT Collector
+    Value: !Sub "Run ./get-adot-collector-endpoint.sh to get the public IP address of the ADOT Collector"
