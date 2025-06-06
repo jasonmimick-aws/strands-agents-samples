@@ -5,9 +5,7 @@ This folder contains an extension of the Amazon Bedrock Agents with Strands samp
 ## Contents
 
 - **Jupyter Notebooks**:
-  - `DatadogObservabilityStrandsAgents.ipynb`: Main notebook demonstrating Datadog integration with Bedrock Agents
-  - `Observability-and-Evaluation-Datadog-sample.ipynb`: Sample implementation of observability and evaluation patterns
-  - `multistep-datadog-trace.ipynb`: Example of multi-step tracing with Datadog
+  - [DatadogObservabilityStrandsAgents.ipynb](DatadogObservabilityStrandsAgents.ipynb): Main notebook demonstrating Datadog integration with Bedrock Agents
 
 ## ADOT Collector with Datadog Exporter
 
@@ -23,7 +21,7 @@ The `adot` directory contains all necessary components to deploy an AWS Distro f
 1. Review the Jupyter notebooks to understand the integration patterns
 2. Follow the instructions in [adot/README.md](adot/README.md) to deploy the ADOT collector
 3. Configure your Datadog API key in the `.env` file
-4. Run one of the provided scripts to execute the sample with Datadog integration
+4. Run the [DatadogObservabilityStrandsAgents.ipynb](DatadogObservabilityStrandsAgents.ipynb) notebook to execute the sample with Datadog integration
 
 ## Requirements
 
