@@ -16,12 +16,12 @@ The `adot` directory contains all necessary components to deploy an AWS Distro f
 - Deployment YAML files for Kubernetes
 - Setup and configuration scripts
 - Sample applications with OpenTelemetry instrumentation
-- Detailed setup instructions in `adot/README-ADOT-SETUP.md`
+- Detailed setup instructions in `[adot/README.md](adot/README-ADOT-SETUP.md)`
 
 ## Getting Started
 
 1. Review the Jupyter notebooks to understand the integration patterns
-2. Follow the instructions in `adot/README.md` to deploy the ADOT collector
+2. Follow the instructions in `[adot/README.md](adot/README.md)` to deploy the ADOT collector
 3. Configure your Datadog API key in the `.env` file
 4. Run one of the provided scripts to execute the sample with Datadog integration
 
