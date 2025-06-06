@@ -2,6 +2,8 @@
 
 This guide provides step-by-step instructions for deploying AWS Distro for OpenTelemetry (ADOT) Collector with Datadog exporter configuration. The deployment will create an ADOT instance that receives traces at the `/traces` endpoint and forwards them to Datadog.
 
+You can then use this endpoint to send OTEL traces which will get forwarded to Datadog.
+
 ## Prerequisites
 
 - AWS CLI installed and configured with appropriate permissions
