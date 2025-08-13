@@ -1,8 +1,10 @@
 # Deploying a Conversational Data Analyst Assistant Solution with Strands Agents SDK
 
-This solution provides a Generative AI application reference that allows users to interact with data through a natural language interface. The solution leverages [Strands Agents SDK](https://strandsagents.com/) to build an agent that connects to a PostgreSQL database, providing data analysis capabilities through a Web Application interface. The infrastructure is deployed using AWS CDK.
+This solution provides a Generative AI application reference that allows users to interact with data through a natural language interface. The solution leverages **[Strands Agents SDK](https://strandsagents.com/)** to build an agent that connects to a PostgreSQL database, providing data analysis capabilities through a Web Application interface. The infrastructure is deployed using AWS CDK.
 
-![Video Games Sales Assistant](./images/preview.png)
+<div align="center">
+<img src="./images/data-analyst-assistant-strands-agents-sdk.gif" alt="Conversational Data Analyst Assistant Solution with Strands Agents SDK">
+</div>
 
 🤖 A Data Analyst Assistant offers an approach to data analysis that enables enterprises to interact with their structured data through natural language conversations rather than complex SQL queries. This kind of assistant provides an intuitive question-answering for data analysis conversations and can be improved by offering data visualizations to enhance the user experience.
 
@@ -57,7 +59,7 @@ The solution deploys the following AWS services through AWS CDK:
 > You can also change the data source to connect to your preferred database engine by adapting the Agent's instructions and tool implementations.
 
 > [!IMPORTANT] 
-> Enhance AI safety and compliance by implementing [Amazon Bedrock Guardrails](https://aws.amazon.com/bedrock/guardrails/) for your AI applications with the seamless integration offered by **[Strands Agents SDK](https://strandsagents.com/latest/user-guide/safety-security/guardrails/)**.
+> Enhance AI safety and compliance by implementing **[Amazon Bedrock Guardrails](https://aws.amazon.com/bedrock/guardrails/)** for your AI applications with the seamless integration offered by **[Strands Agents SDK](https://strandsagents.com/latest/user-guide/safety-security/guardrails/)**.
 
 The **user interaction workflow** operates as follows:
 
@@ -81,8 +83,8 @@ The **user interaction workflow** operates as follows:
 
 The deployment consists of two main steps:
 
-1. **Generative AI Application** - [Data Source and Strands Agent Deployment with CDK](./cdk-strands-data-analyst-assistant/)
-2. **Front-End Implementation** - [Integrating Strands Agent with a Ready-to-Use Data Analyst Assistant Application](./amplify-video-games-sales-assistant-strands/)
+1. **Generative AI Application - [Data Source and Strands Agent Deployment with CDK](./cdk-strands-data-analyst-assistant/)**
+2. **Front-End Implementation - [Integrating Strands Agent with a Ready-to-Use Data Analyst Assistant Application](./amplify-video-games-sales-assistant-strands/)**
 
 > [!NOTE]
 > *It is recommended to use the Oregon (us-west-2) or N. Virginia (us-east-1) regions to deploy the application.*
@@ -93,6 +95,8 @@ The deployment consists of two main steps:
 ## Application Features
 
 The following images showcase a conversational experience analysis that includes: natural language answers, the reasoning process used by the LLM to generate SQL queries, the database records retrieved from those queries, and the resulting chart visualizations.
+
+![Video Games Sales Assistant](./images/preview.png)
 
 - **Conversational interface with an agent responding to user questions**
 
